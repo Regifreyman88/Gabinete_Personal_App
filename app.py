@@ -8,9 +8,11 @@ st.set_page_config(
 
 st.title("🏛️ Curadores del Futuro: El Juego")
 
-# Usamos st.markdown para textos largos, es más robusto
 st.markdown("---")
-st.image("portada_gabinete.jpg")
+try:
+    st.image("portada_gabinete.jpg")
+except Exception:
+    st.warning("Asegúrate de haber subido la imagen de portada 'portada_gabinete.jpg' a tu repositorio.")
 st.markdown("---")
 
 
@@ -45,3 +47,10 @@ with col2:
         Luego, volverás a esta aplicación para documentar tu creación, reflexionar 
         sobre el proceso y recibir tu siguiente misión. Esta bitácora guardará y 
         potenciará tu trabajo manual.
+        """
+    )
+
+st.subheader("Las 4 Fases de tu Viaje")
+st.markdown(
+    """
+    - **F
