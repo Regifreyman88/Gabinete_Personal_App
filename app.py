@@ -8,14 +8,40 @@ st.set_page_config(
 
 st.title("🏛️ Curadores del Futuro: El Juego")
 
-# --- LÍNEA AÑADIDA PARA MOSTRAR LA PORTADA ---
-# Asegúrate de que tu imagen se llame 'portada_gabinete.jpg' en tu repositorio.
+# Usamos st.markdown para textos largos, es más robusto
+st.markdown("---")
 st.image("portada_gabinete.jpg")
+st.markdown("---")
+
 
 st.header("Tu Misión: De la Idea a la Exposición")
 
-st.write(
+st.markdown(
     """
     Bienvenido/a a tu **Bitácora de Curador**. Este no es un juego pasivo, es un taller interactivo 
     que te guiará en un viaje creativo. Tu misión es diseñar, prototipar y, finalmente, 
-    colaborar en una exposición colectiva,
+    colaborar en una exposición colectiva, partiendo de una sola idea: tu propio 'Gabinete de Maravillas'.
+    """
+)
+
+st.subheader("La Mecánica de Creación")
+st.markdown("El juego combina dos mundos: el físico y el digital. En cada fase del viaje:")
+
+col1, col2 = st.columns(2)
+
+with col1:
+    st.success(
+        """
+        **1. Creación Manual 👐**\n
+        Primero, trabajarás con tus manos. Dibujarás, construirás y conectarás ideas 
+        usando materiales reales. Aquí es donde ocurre la magia de la arteterapia.
+        """
+    )
+
+with col2:
+    st.info(
+        """
+        **2. Registro Digital 📲**\n
+        Luego, volverás a esta aplicación para documentar tu creación, reflexionar 
+        sobre el proceso y recibir tu siguiente misión. Esta bitácora guardará y 
+        potenciará tu trabajo manual.
