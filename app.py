@@ -53,4 +53,22 @@ with col2:
 st.subheader("Las 4 Fases de tu Viaje")
 st.markdown(
     """
-    - **F
+    - **Fase 1: El Análisis Forense:** Rescatarás un artefacto y descubrirás su historia oculta.
+    - **Fase 2: La Arquitectura Conceptual:** Diseñarás el 'plano' de tu gabinete personal.
+    - **Fase 3: El Prototipo:** Construirás un modelo físico de tu gabinete y le darás voz.
+    - **Fase 4: La Conspiración Curatorial:** Colaborarás en equipo para diseñar una exposición colectiva.
+    """
+)
+
+st.header("¿Estás listo/a? Comienza tu viaje en el menú de la izquierda, en la Fase 1.")
+
+# --- Módulo de Apoyo en la Barra Lateral ---
+st.sidebar.markdown("---")
+st.sidebar.header("Apoya este Proyecto")
+st.sidebar.markdown(
+    """
+    Si te gustan estas herramientas, considera apoyar su creación y mantenimiento. 
+    ¡Cada contribución ayuda a mantener vivos estos espacios creativos!
+    """
+)
+st.sidebar.link_button("Invítame un café ☕", "https://coff.ee/regifreyman8")
