@@ -8,7 +8,7 @@ st.set_page_config(layout="wide")
 st.title("🖼️ Galería de la Clase: Gabinetes Personales")
 st.markdown("Explora los análisis y descubrimientos realizados por todos los participantes del curso.")
 
-# --- AUTENTICACIÓN (CON EL PERMISO CORREGIDO) ---
+# --- AUTENTICACIÓN ---
 def connect_to_google_sheets():
     try:
         creds_dict = {
@@ -24,7 +24,6 @@ def connect_to_google_sheets():
             "client_x509_cert_url": st.secrets["gcp_client_x509_cert_url"],
         }
         
-        # AQUÍ ESTÁ LA CORRECCIÓN: Se añadieron los permisos para Google Drive
         scopes = [
             "https://www.googleapis.com/auth/spreadsheets",
             "https://www.googleapis.com/auth/drive"
@@ -75,7 +74,8 @@ if client:
             
             with col1:
                 if col_imagen in row and row[col_imagen]:
-                    st.image(row[col_imagen], use_column_width=True)
+                    # --- LÍNEA CORREGIDA ---
+                    st.image(row[col_imagen], use_container_width=True)
                 else:
                     st.warning("Imagen no disponible.")
             
