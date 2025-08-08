@@ -8,7 +8,7 @@ st.set_page_config(layout="wide")
 st.title("🖼️ Galería de la Clase: Gabinetes Personales")
 st.markdown("Explora los análisis y descubrimientos realizados por todos los participantes del curso.")
 
-# --- AUTENTICACIÓN ---
+# --- AUTENTICACIÓN (CON EL PERMISO CORREGIDO) ---
 def connect_to_google_sheets():
     try:
         creds_dict = {
@@ -23,15 +23,21 @@ def connect_to_google_sheets():
             "auth_provider_x509_cert_url": st.secrets["gcp_auth_provider_x509_cert_url"],
             "client_x509_cert_url": st.secrets["gcp_client_x509_cert_url"],
         }
+        
+        # AQUÍ ESTÁ LA CORRECCIÓN: Se añadieron los permisos para Google Drive
+        scopes = [
+            "https://www.googleapis.com/auth/spreadsheets",
+            "https://www.googleapis.com/auth/drive"
+        ]
         creds = service_account.Credentials.from_service_account_info(
             creds_dict,
-            scopes=["https://www.googleapis.com/auth/spreadsheets"],
+            scopes=scopes,
         )
         client = gspread.authorize(creds)
         return client
     except Exception as e:
         st.error(f"Error de autenticación: {e}")
-        st.info("Verifica que los 'Secrets' en GitHub sean correctos y que hayas compartido tu Hoja de Cálculo con el 'client_email'.")
+        st.info("Verifica que los 'Secrets' en GitHub sean correctos y que hayas compartido tu Hoja de Cálculo y la Carpeta de Drive con el 'client_email'.")
         return None
 
 # --- CARGA DE DATOS ---
@@ -53,14 +59,13 @@ client = connect_to_google_sheets()
 if client:
     df = load_data(client)
     if not df.empty:
-        df = df.iloc[::-1] # Muestra los más recientes primero
+        df = df.iloc[::-1]
         for index, row in df.iterrows():
             st.divider()
 
             # --- Nombres de las columnas de tu Formulario ---
-            # (He usado los que me proporcionaste)
             col_carrera = "Carrera"
-            col_artefacto_central = "El artefacto central: Describe el único objeto, real o imaginado, que está en el corazón de tu Gabinete."
+            col_artefacto = "El artefacto central: Describe el único objeto, real o imaginado, que está en el corazón de tu Gabinete."
             col_pitch = "El Pitch (La Revelación Controlada)\nEscribe aquí tu pitch (máximo 3 minutos de lectura). Responde: ¿Por qué este Gabinete merece existir y qué debería sentir alguien al visitarlo?"
             col_imagen = "Mi Gabinete"
             col_timestamp = "Marca temporal"
@@ -69,18 +74,16 @@ if client:
             col1, col2 = st.columns([1, 2])
             
             with col1:
-                # Se asegura de que la columna de imagen exista y tenga un enlace
                 if col_imagen in row and row[col_imagen]:
                     st.image(row[col_imagen], use_column_width=True)
                 else:
                     st.warning("Imagen no disponible.")
             
             with col2:
-                # Se asegura de que las columnas de texto existan
-                if col_carrera in row:
+                if col_carrera in row and row[col_carrera]:
                     st.subheader(f"Gabinete de: {row[col_carrera]}")
-                if col_artefacto_central in row:
-                    st.markdown(f"**Artefacto Central:** {row[col_artefacto_central]}")
+                if col_artefacto in row:
+                    st.markdown(f"**Artefacto Central:** {row[col_artefacto]}")
                 if col_pitch in row:
                     st.markdown(f"**El Pitch:** *\"{row[col_pitch]}\"*")
                 if col_timestamp in row:
