@@ -1,10 +1,33 @@
+import sys
+from pathlib import Path
 import streamlit as st
 
-st.set_page_config(
-    page_title="Fase 3: El Prototipo",
-    page_icon="📦"
-)
+# --- Bootstrap para reutilizar backend/funciones del hub (app.py) ---
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
+from app import DATA_DIR, save_media  # type: ignore
+
+st.set_page_config(page_title="Fase 3: El Prototipo", page_icon="📦")
+
+# ---------- Estado de borrador compartido ----------
+if "draft" not in st.session_state:
+    st.session_state.draft = {
+        # Fase 1
+        "image_urls": [],
+        "reflection_q1": "",
+        # Fase 2
+        "tipo_espejo": "",
+        "metafora_central": "",
+        "salas_principales": "",
+        "artefacto_central": "",
+        # Fase 3
+        "reflection_q2": "",  # aquí guardaremos el pitch
+    }
+draft = st.session_state.draft
+
+# ---------- UI ----------
 st.title("Fase 3: El Prototipo 📦")
 
 st.header("La Metáfora: EL SECRETO")
@@ -20,34 +43,4 @@ st.markdown("---")
 st.header("Tu Misión de Prototipado")
 st.write(
     """
-    **1. Actividad Manual:** Construye una versión 'de baja fidelidad' de tu Gabinete. 
-    Puede ser un diorama en una caja de zapatos, un collage detallado, o un objeto hecho con 
-    materiales reciclados. Luego, tómale una fotografía.
-
-    **2. Actividad Digital:** Sube la foto de tu prototipo y escribe tu 'pitch', revelando 
-    la esencia de tu gabinete al mundo.
-    """
-)
-
-# --- Componentes Interactivos ---
-
-st.subheader("Documenta tu Prototipo")
-
-# Componente para subir la foto del prototipo
-foto_prototipo = st.file_uploader(
-    "Sube aquí la foto de tu prototipo físico:", 
-    type=['jpg', 'png', 'jpeg']
-)
-
-if foto_prototipo is not None:
-    st.image(foto_prototipo, caption="Tu prototipo.", use_container_width=True)
-
-# Componente para el pitch
-st.subheader("El Pitch (La Revelación Controlada)")
-pitch = st.text_area(
-    "Escribe aquí tu pitch (máximo 3 minutos de lectura). Responde: ¿Por qué este Gabinete merece existir y qué debería sentir alguien al visitarlo?",
-    height=250
-)
-
-if pitch:
-    st.success("¡Tu pitch ha sido guardado en la bitácora de esta sesión!")
+    **1.**
