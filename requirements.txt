@@ -1,5 +1,6 @@
 streamlit
-sqlmodel
-sqlalchemy
+sqlmodel==0.0.14
+SQLAlchemy==1.4.46
+pydantic<2
 pillow
 pandas
