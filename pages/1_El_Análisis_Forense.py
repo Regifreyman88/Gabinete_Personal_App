@@ -1,10 +1,26 @@
+import sys
+from pathlib import Path
 import streamlit as st
 
-st.set_page_config(
-    page_title="Fase 1: Análisis Forense",
-    page_icon="🔎"
-)
+# --- Bootstrap para reutilizar backend y utilidades de app.py ---
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
+# Reutilizamos las utilidades del hub principal
+from app import DATA_DIR, save_media  # type: ignore
+
+st.set_page_config(page_title="Fase 1: Análisis Forense", page_icon="🔎")
+
+# ---------- Estado de borrador compartido ----------
+if "draft" not in st.session_state:
+    st.session_state.draft = {
+        "image_urls": [],       # aquí iremos acumulando imágenes guardadas
+        "reflection_q1": "",    # respuesta de esta fase
+    }
+draft = st.session_state.draft
+
+# ---------- UI ----------
 st.title("Fase 1: El Análisis Forense 🔎")
 
 st.header("La Metáfora: La Caverna de Platón")
@@ -28,20 +44,4 @@ st.write(
     """
 )
 
-# Componente para subir la foto
-foto_artefacto = st.file_uploader(
-    "Sube aquí la foto de tu artefacto rescatado:", 
-    type=['jpg', 'png', 'jpeg']
-)
-
-if foto_artefacto is not None:
-    st.image(foto_artefacto, caption="Tu artefacto rescatado.", use_container_width=True)
-
-# Componente para la reflexión
-st.subheader("Reflexión del Curador")
-reflexion = st.text_area(
-    "Basado en la metáfora de la caverna, ¿cuál es el 'sol' de la verdad que tu artefacto te ayudó a imaginar?"
-)
-
-if reflexion:
-    st.success("¡Tu reflexión ha sido guardada en la bitácora de esta sesión!")
+# --- Subida de imagen (no se guarda hasta que des clic en "G
