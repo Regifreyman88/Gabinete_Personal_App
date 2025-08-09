@@ -1,21 +1,19 @@
 # ================================
-# Gabinete Personal – app.py (completo)
+# Gabinete Personal – app.py (sqlite3 puro)
 # ================================
-# Autor: para Regina A. Freyman
-# App todo-en-uno: captura, curaduría y exhibición (texto, imágenes y audio)
-# Backend local: SQLite + sistema de archivos. En Cloud, migrar media a un bucket.
-# ================================
-
 from __future__ import annotations
 import io
 import os
+import csv
+import sqlite3
+from zipfile import ZipFile, ZIP_DEFLATED
 from pathlib import Path
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Dict, Any
 
 import streamlit as st
 from PIL import Image
-from sqlmodel import Field, SQLModel, Session, create_engine, select
+import pandas as pd
 
 # ----------------
 # Config general
@@ -35,55 +33,82 @@ DB_PATH = DATA_DIR / "gabinete.db"
 UPLOADS_DIR = DATA_DIR / "uploads"
 IMG_DIR = UPLOADS_DIR / "images"
 AUDIO_DIR = UPLOADS_DIR / "audio"
-ASSETS_DIR = BASE_DIR / "assets"  # <- tus banners/hero
+ASSETS_DIR = BASE_DIR / "assets"  # tus banners/hero
 
 for p in [DATA_DIR, UPLOADS_DIR, IMG_DIR, AUDIO_DIR]:
     p.mkdir(parents=True, exist_ok=True)
 
 def show_img(rel_path: str):
-    """Muestra una imagen desde /assets si existe (sin crashear si falta)."""
     p = ASSETS_DIR / rel_path
     if p.exists():
         st.image(str(p), use_container_width=True)
 
 # ----------------
-# Media backend
+# Secrets simples
 # ----------------
-MEDIA_BACKEND = st.secrets.get("MEDIA_BACKEND", "local")  # "local" o "external"
+MEDIA_BACKEND = st.secrets.get("MEDIA_BACKEND", "local")  # "local" (único habilitado aquí)
 ADMIN_KEY = st.secrets.get("ADMIN_KEY", "regina-demo")
 
 # ----------------
-# Modelo de datos
+# DB (sqlite3)
 # ----------------
-class Entry(SQLModel, table=True):
-    id: Optional[int] = Field(default=None, primary_key=True)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+SCHEMA = """
+CREATE TABLE IF NOT EXISTS entries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    created_at TEXT NOT NULL,
+    student_name TEXT NOT NULL,
+    email TEXT NOT NULL,
+    grp TEXT NOT NULL,
+    artifact_title TEXT NOT NULL,
+    artifact_desc TEXT NOT NULL,
+    tags TEXT DEFAULT '',
+    reflection_q1 TEXT DEFAULT '',
+    reflection_q2 TEXT DEFAULT '',
+    reflection_q3 TEXT DEFAULT '',
+    image_urls TEXT DEFAULT '',
+    audio_url TEXT DEFAULT '',
+    suno_link TEXT DEFAULT ''
+);
+"""
 
-    # Perfil
-    student_name: str
-    email: str
-    group: str = Field(default="Grupo A")
+def db_connect():
+    con = sqlite3.connect(DB_PATH)
+    con.row_factory = sqlite3.Row
+    return con
 
-    # Obra y metadatos
-    artifact_title: str
-    artifact_desc: str
-    tags: str = Field(default="")  # coma separada
+def db_init():
+    with db_connect() as con:
+        con.executescript(SCHEMA)
+        con.commit()
 
-    # Reflexiones
-    reflection_q1: str = Field(default="")
-    reflection_q2: str = Field(default="")
-    reflection_q3: str = Field(default="")
+def insert_entry(row: Dict[str, Any]) -> None:
+    with db_connect() as con:
+        con.execute(
+            """
+            INSERT INTO entries
+            (created_at, student_name, email, grp, artifact_title, artifact_desc, tags,
+             reflection_q1, reflection_q2, reflection_q3, image_urls, audio_url, suno_link)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                datetime.utcnow().isoformat(),
+                row["student_name"], row["email"], row["group"],
+                row["artifact_title"], row["artifact_desc"], row.get("tags",""),
+                row.get("reflection_q1",""), row.get("reflection_q2",""), row.get("reflection_q3",""),
+                row.get("image_urls",""), row.get("audio_url",""), row.get("suno_link",""),
+            )
+        )
+        con.commit()
 
-    # Media
-    image_urls: str = Field(default="")  # separadas por "||"
-    audio_url: str = Field(default="")
-    suno_link: str = Field(default="")
+def fetch_entries() -> List[sqlite3.Row]:
+    with db_connect() as con:
+        cur = con.execute("SELECT * FROM entries ORDER BY datetime(created_at) DESC")
+        return cur.fetchall()
 
-engine = create_engine(f"sqlite:///{DB_PATH}")
-SQLModel.metadata.create_all(engine)
+db_init()
 
 # ----------------
-# Utilidades media
+# Media utils
 # ----------------
 def save_image_locally(file) -> str:
     img = Image.open(file).convert("RGB")
@@ -100,20 +125,15 @@ def save_audio_locally(file) -> str:
         f.write(file.read())
     return str(out_path.relative_to(DATA_DIR))
 
-def upload_external(file, kind: str) -> str:
-    raise NotImplementedError("Configura un bucket (Supabase/S3/Cloudinary) si usas MEDIA_BACKEND='external'.")
-
 def save_media(files: List, kind: str) -> List[str]:
-    """Guarda imágenes o audio y devuelve lista de rutas/URLs."""
     urls = []
     if not files:
         return urls
     for f in files:
-        if MEDIA_BACKEND == "local":
-            rel = save_image_locally(f) if kind == "image" else save_audio_locally(f)
-            urls.append(rel)  # ruta relativa dentro de DATA_DIR
-        else:
-            urls.append(upload_external(f, kind))
+        if kind == "image":
+            urls.append(save_image_locally(f))
+        elif kind == "audio":
+            urls.append(save_audio_locally(f))
     return urls
 
 def parse_tags(tags_str: str) -> List[str]:
@@ -204,9 +224,8 @@ if page == "Crear mi gabinete":
             images = images[:6]
 
         st.markdown("---")
-        # Reflexiones (puedes mapear con lo guardado en pages/)
+        # Reflexiones (prefill con draft si existe)
         st.subheader("4) Reflexiones")
-        # prefill desde borrador si existe
         draft = st.session_state.get("draft", {})
         reflection_q1 = st.text_area(
             "Q1 · ¿Qué representa tu arte-objeto de ti que no se ve a simple vista?",
@@ -241,23 +260,21 @@ if page == "Crear mi gabinete":
             img_urls = save_media(images, kind="image") if images else []
             aud_urls = save_media([audio_file], kind="audio") if audio_file else []
 
-            with Session(engine) as session:
-                entry = Entry(
-                    student_name=student_name.strip(),
-                    email=email.strip(),
-                    group=group,
-                    artifact_title=artifact_title.strip(),
-                    artifact_desc=artifact_desc.strip(),
-                    tags=tags.strip(),
-                    reflection_q1=(reflection_q1 or "").strip(),
-                    reflection_q2=(reflection_q2 or "").strip(),
-                    reflection_q3=(reflection_q3 or "").strip(),
-                    image_urls="||".join(img_urls),
-                    audio_url=aud_urls[0] if aud_urls else "",
-                    suno_link=(suno_link or "").strip(),
-                )
-                session.add(entry)
-                session.commit()
+            row = {
+                "student_name": student_name.strip(),
+                "email": email.strip(),
+                "group": group,
+                "artifact_title": artifact_title.strip(),
+                "artifact_desc": artifact_desc.strip(),
+                "tags": tags.strip(),
+                "reflection_q1": (reflection_q1 or "").strip(),
+                "reflection_q2": (reflection_q2 or "").strip(),
+                "reflection_q3": (reflection_q3 or "").strip(),
+                "image_urls": "||".join(img_urls),
+                "audio_url": aud_urls[0] if aud_urls else "",
+                "suno_link": (suno_link or "").strip(),
+            }
+            insert_entry(row)
             st.success("¡Tu gabinete ha sido publicado!")
 
 # -------------
@@ -271,68 +288,65 @@ if page == "Galería":
     search = colf[1].text_input("Buscar", placeholder="título, nombre, etiqueta…")
     tag_f = colf[2].text_input("Filtrar por etiqueta específica (exacta)")
 
-    with Session(engine) as session:
-        stmt = select(Entry).order_by(Entry.created_at.desc())
-        entries = list(session.exec(stmt))
+    entries = fetch_entries()
 
-    def match(e: Entry) -> bool:
-        if group_f != "Todos" and e.group != group_f:
+    def match(e: sqlite3.Row) -> bool:
+        if group_f != "Todos" and e["grp"] != group_f:
             return False
         if search:
             s = search.lower()
             blob = " ".join([
-                e.student_name, e.email, e.group, e.artifact_title, e.artifact_desc, e.tags,
-                e.reflection_q1, e.reflection_q2, e.reflection_q3
+                e["student_name"], e["email"], e["grp"], e["artifact_title"], e["artifact_desc"], e["tags"],
+                e["reflection_q1"], e["reflection_q2"], e["reflection_q3"]
             ]).lower()
             if s not in blob:
                 return False
         if tag_f:
-            tags_list = parse_tags(e.tags)
-            if tag_f.strip() not in tags_list:
+            if tag_f.strip() not in parse_tags(e["tags"]):
                 return False
         return True
 
     filtered = [e for e in entries if match(e)]
     st.caption(f"Mostrando {len(filtered)} de {len(entries)} gabinetes")
 
-    # Grid de tarjetas
     st.markdown('<div class="grid cols-3">', unsafe_allow_html=True)
     for e in filtered:
         st.markdown('<div class="card">', unsafe_allow_html=True)
-        # portada: primera imagen
-        img_urls = [u for u in e.image_urls.split("||") if u]
+
+        # Portada: primera imagen
+        img_urls = [u for u in (e["image_urls"] or "").split("||") if u]
         if img_urls:
             first = DATA_DIR / img_urls[0]
             if first.exists():
                 st.markdown(f"<img class='thumb' src='{first.as_posix()}' />", unsafe_allow_html=True)
 
-        st.markdown(f"<h3>{e.artifact_title}</h3>", unsafe_allow_html=True)
-        st.markdown(f"<div class='meta'>Por {e.student_name} — {e.group}</div>", unsafe_allow_html=True)
-        st.write(e.artifact_desc)
+        st.markdown(f"<h3>{e['artifact_title']}</h3>", unsafe_allow_html=True)
+        st.markdown(f"<div class='meta'>Por {e['student_name']} — {e['grp']}</div>", unsafe_allow_html=True)
+        st.write(e["artifact_desc"])
 
-        tags_list = parse_tags(e.tags)
+        tags_list = parse_tags(e["tags"] or "")
         if tags_list:
             st.markdown(" ".join([f"<span class='badge'>{t}</span>" for t in tags_list]), unsafe_allow_html=True)
 
         # Audio/Suno
-        if e.audio_url:
-            ap = DATA_DIR / e.audio_url
+        if e["audio_url"]:
+            ap = DATA_DIR / e["audio_url"]
             if ap.exists():
                 with open(ap, "rb") as f:
                     st.audio(f.read())
-        if e.suno_link:
-            st.link_button("Escuchar en Suno", e.suno_link)
+        if e["suno_link"]:
+            st.link_button("Escuchar en Suno", e["suno_link"])
 
         with st.expander("Reflexiones"):
-            st.markdown(f"**Q1** {e.reflection_q1 or '—'}")
-            st.markdown(f"**Q2** {e.reflection_q2 or '—'}")
-            st.markdown(f"**Q3** {e.reflection_q3 or '—'}")
+            st.markdown(f"**Q1** {e['reflection_q1'] or '—'}")
+            st.markdown(f"**Q2** {e['reflection_q2'] or '—'}")
+            st.markdown(f"**Q3** {e['reflection_q3'] or '—'}")
 
         st.markdown("</div>", unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
 # ----------------
-# Página: Docente
+# Página: Panel docente
 # ----------------
 if page == "Panel docente":
     st.title("Panel docente")
@@ -341,21 +355,16 @@ if page == "Panel docente":
         st.info("Introduce la clave docente para ver y exportar datos.")
         st.stop()
 
-    from zipfile import ZipFile, ZIP_DEFLATED
-    import csv
-    import pandas as pd
-
-    with Session(engine) as session:
-        entries = list(session.exec(select(Entry).order_by(Entry.created_at.desc())))
+    entries = fetch_entries()
 
     st.subheader("Resumen")
     cols = st.columns(4)
     cols[0].metric("Total gabinetes", len(entries))
-    cols[1].metric("Con audio", sum(1 for e in entries if e.audio_url or e.suno_link))
-    cols[2].metric(">2 imágenes", sum(1 for e in entries if len([u for u in e.image_urls.split('||') if u]) > 2))
+    cols[1].metric("Con audio", sum(1 for e in entries if (e["audio_url"] or e["suno_link"])))
+    cols[2].metric(">2 imágenes", sum(1 for e in entries if len([u for u in (e["image_urls"] or "").split('||') if u]) > 2))
     groups = {}
     for e in entries:
-        groups[e.group] = groups.get(e.group, 0) + 1
+        groups[e["grp"]] = groups.get(e["grp"], 0) + 1
     cols[3].metric("Grupos", len(groups))
 
     st.markdown("---")
@@ -370,8 +379,8 @@ if page == "Panel docente":
     ])
     for e in entries:
         writer.writerow([
-            e.id, e.created_at.isoformat(), e.student_name, e.email, e.group, e.artifact_title, e.artifact_desc,
-            e.tags, e.reflection_q1, e.reflection_q2, e.reflection_q3, e.image_urls, e.audio_url, e.suno_link,
+            e["id"], e["created_at"], e["student_name"], e["email"], e["grp"], e["artifact_title"], e["artifact_desc"],
+            e["tags"], e["reflection_q1"], e["reflection_q2"], e["reflection_q3"], e["image_urls"], e["audio_url"], e["suno_link"],
         ])
     csv_bytes = csv_buf.getvalue().encode("utf-8")
     st.download_button("Descargar CSV", data=csv_bytes, file_name="gabinetes.csv", mime="text/csv")
@@ -381,37 +390,20 @@ if page == "Panel docente":
     with ZipFile(zip_buf, "w", ZIP_DEFLATED) as zf:
         zf.writestr("gabinetes.csv", csv_bytes)
         for e in entries:
-            for u in [u for u in e.image_urls.split("||") if u]:
+            for u in [u for u in (e["image_urls"] or "").split("||") if u]:
                 p = DATA_DIR / u
                 if p.exists():
                     zf.write(p, arcname=str(Path("media") / u))
-            if e.audio_url:
-                ap = DATA_DIR / e.audio_url
+            if e["audio_url"]:
+                ap = DATA_DIR / e["audio_url"]
                 if ap.exists():
-                    zf.write(ap, arcname=str(Path("media") / e.audio_url))
+                    zf.write(ap, arcname=str(Path("media") / e["audio_url"]))
     st.download_button("Descargar ZIP (CSV + media)", data=zip_buf.getvalue(),
                        file_name="gabinetes_media.zip", mime="application/zip")
-
-    st.markdown("---")
-    st.subheader("Vista de tabla")
-    df = pd.DataFrame([
-        {
-            "ID": e.id,
-            "Creado": e.created_at.strftime("%Y-%m-%d %H:%M"),
-            "Nombre": e.student_name,
-            "Email": e.email,
-            "Grupo": e.group,
-            "Título": e.artifact_title,
-            "Etiquetas": e.tags,
-            "#Imágenes": len([u for u in e.image_urls.split("||") if u]),
-            "Audio?": bool(e.audio_url or e.suno_link),
-        }
-        for e in entries
-    ])
-    st.dataframe(df, use_container_width=True)
 
 # -------------
 # Pie
 # -------------
 st.markdown("---")
-st.caption("Hecho con ❤️ por el Gabinete del Asombro · Streamlit + SQLite")
+st.caption("Hecho con ❤️ por el Gabinete del Asombro · Streamlit + SQLite (sqlite3)")
+
