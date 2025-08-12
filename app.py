@@ -407,6 +407,17 @@ if page == "Panel docente":
                     zf.write(ap, arcname=str(Path("media") / e["audio_url"]))
     st.download_button("Descargar ZIP (CSV + media)", data=zip_buf.getvalue(),
                        file_name="gabinetes_media.zip", mime="application/zip")
+    from spark_patch import admin_panel
+    st.markdown("---")
+    st.subheader("Evaluación SPARK")
+    try:
+        SPARK_CONN
+    except NameError:
+        import sqlite3
+        from spark_patch import ensure_schema
+        SPARK_CONN = sqlite3.connect(DB_PATH, check_same_thread=False)
+        ensure_schema(SPARK_CONN)
+    admin_panel(SPARK_CONN)
 
 # ----- Pie
 st.markdown("---")
