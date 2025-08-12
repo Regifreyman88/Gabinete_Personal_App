@@ -392,7 +392,7 @@ if page == "Panel docente":
     st.download_button("Descargar CSV", data=csv_buf.getvalue().encode("utf-8"),
                        file_name="gabinetes.csv", mime="text/csv")
 
-    # ZIP (CSV + media)
+       # ZIP (CSV + media)
     zip_buf = io.BytesIO()
     with ZipFile(zip_buf, "w", ZIP_DEFLATED) as zf:
         zf.writestr("gabinetes.csv", csv_buf.getvalue().encode("utf-8"))
@@ -405,18 +405,17 @@ if page == "Panel docente":
                 ap = DATA_DIR / e["audio_url"]
                 if ap.exists():
                     zf.write(ap, arcname=str(Path("media") / e["audio_url"]))
-    st.download_button("Descargar ZIP (CSV + media)", data=zip_buf.getvalue(),
-                       file_name="gabinetes_media.zip", mime="application/zip")
+    st.download_button(
+        "Descargar ZIP (CSV + media)",
+        data=zip_buf.getvalue(),
+        file_name="gabinetes_media.zip",
+        mime="application/zip"
+    )
+
+    # --- Evaluación SPARK (0–4) + export CSV
     from spark_patch import admin_panel
     st.markdown("---")
     st.subheader("Evaluación SPARK")
-    try:
-        SPARK_CONN
-    except NameError:
-        import sqlite3
-        from spark_patch import ensure_schema
-        SPARK_CONN = sqlite3.connect(DB_PATH, check_same_thread=False)
-        ensure_schema(SPARK_CONN)
     admin_panel(SPARK_CONN)
 
 # ----- Pie
