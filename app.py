@@ -10,6 +10,7 @@ from typing import List, Dict, Any
 
 import streamlit as st
 from PIL import Image
+from spark_patch import ensure_schema
 
 # ---------------- Config ----------------
 APP_TITLE = "Gabinete Personal – Metodologías del Pensamiento Creativo"
@@ -67,6 +68,9 @@ def db():
     return con
 with db() as con:
     con.executescript(SCHEMA)
+# ---- SPARK: usa la MISMA base data/gabinete.db
+SPARK_CONN = sqlite3.connect(DB_PATH, check_same_thread=False)
+ensure_schema(SPARK_CONN)  # crea spark_entries y spark_scores si no existen
 
 def insert_entry(row: Dict[str, Any]) -> None:
     with db() as con:
@@ -302,6 +306,12 @@ if page == "Crear mi gabinete":
                 "suno_link": (suno or "").strip(),
             })
             st.success("¡Tu gabinete ha sido publicado!")
+    from spark_patch import spark_ui
+    st.markdown("---")
+    st.subheader("SPARK — Checkpoints (5/5)")
+    _email = (email or "").strip() or "sin-correo@example.com"
+    _equipo = group
+    spark_ui(SPARK_CONN, _email, _equipo)
 
 # ----- Galería
 if page == "Galería":
